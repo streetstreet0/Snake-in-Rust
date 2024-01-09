@@ -1,16 +1,54 @@
+use std::collections::HashMap;
+
 fn main() {
-    const width: usize = 17;
-    const height: usize = 13;
+    const WIDTH: usize = 34;
+    const HEIGHT: usize = 13;
+
+    let mut snake = generate_initial_snake(WIDTH, HEIGHT);
     
-    let mut snake = generate_initial_snake();
-    
-    draw_screen(&snake, width, height);
+    draw_screen(&snake, WIDTH, HEIGHT);
 }
 
 fn draw_screen(snake: &Snake, width: usize, height: usize) {
     draw_top_bottom_line(width);
 
+    let mut line_num = 0;
+    while line_num < height {
+        draw_centre_line(snake, width, line_num);
+        line_num += 1;
+    }
+
     draw_top_bottom_line(width);
+}
+
+fn draw_centre_line(snake: &Snake, width: usize, line: usize) {
+    let mut entities_in_line = HashMap::new();
+    let mut position: usize = 0;
+    while position < width {
+        entities_in_line.insert(position, Entity::Space);
+        position += 1;
+    }
+
+    for snake_part in &snake.parts {
+        if snake_part.coord.y == line {
+            entities_in_line.insert(snake_part.coord.x, Entity::SnakePart);
+        }
+    }
+
+    let mut line = String::from("|");
+    let mut counter: usize = 0;
+    while counter < width {
+        match entities_in_line.get(&counter) {
+            Some(Entity::SnakePart) => line.push_str("O"),
+            Some(Entity::Food) => line.push_str("X"),
+            Some(Entity::Space) => line.push_str(" "),
+            _ => println!("An Error has occured!"),
+        }
+        counter += 1    
+    }
+    line.push_str("|");
+
+    println!("{line}");
 }
 
 fn draw_top_bottom_line(width: usize) {
@@ -25,19 +63,21 @@ fn draw_top_bottom_line(width: usize) {
     println!("{line}");
 }
 
-fn generate_initial_snake() -> Snake {
+fn generate_initial_snake(width: usize, height: usize) -> Snake {
+    let y_position = if height % 2 == 1 {height/2} else {height/2 - 1};
+
     let snake_tail = SnakePart {
         coord: Coordinate {
-            x: 16,
-            y: 6,
+            x: width-1,
+            y: y_position,
         },
         direction: Direction::Left,
     };
 
     let snake_head = SnakePart {
         coord: Coordinate {
-            x: 16,
-            y: 6,
+            x: width-2,
+            y: y_position,
         },
         direction: Direction::Left,
     };
@@ -61,8 +101,8 @@ struct SnakePart {
 #[derive(Debug)]
 #[derive(PartialEq, Eq)]
 struct Coordinate {
-    x: i32,
-    y: i32,
+    x: usize,
+    y: usize,
 }
 
 impl Coordinate {
@@ -185,6 +225,12 @@ impl Direction {
             } }
         }
     }
+}
+
+enum Entity {
+    SnakePart,
+    Food,
+    Space,
 }
 
 // RECURSIVE DATASTRUCTURE WILL NOT WORK WITH RUST
