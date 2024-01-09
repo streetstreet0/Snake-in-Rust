@@ -1,11 +1,45 @@
 fn main() {
-    println!("Hello, world!");
+    const width: usize = 17;
+    const height: usize = 13;
+    
+    let mut snake = generate_initial_snake();
+    
+
+}
+
+fn draw_screen(snake: &Snake, width: usize, height: usize) {
+    
+}
+
+fn generate_initial_snake() -> Snake {
+    let snake_tail = SnakePart {
+        coord: Coordinate {
+            x: 16,
+            y: 6,
+        },
+        direction: Direction::Left,
+    };
+
+    let snake_head = SnakePart {
+        coord: Coordinate {
+            x: 16,
+            y: 6,
+        },
+        direction: Direction::Left,
+    };
+
+    let snake_parts = vec![snake_head, snake_tail];
+    
+    Snake {
+        parts: snake_parts,
+        size: 2,
+        direction: Direction::Left,
+    }
 }
 
 #[derive(Debug)]
 struct SnakePart {
     coord: Coordinate,
-    is_head: bool,
     direction: Direction,
 }
 
@@ -50,6 +84,7 @@ impl Coordinate {
 
 #[derive(Debug)]
 struct Snake {
+    // note: the first item in the vector is the head
     parts: Vec<SnakePart>,
     size: usize,
     direction: Direction,
@@ -57,19 +92,11 @@ struct Snake {
 
 impl Snake {
     fn move_snake(&mut self, growing: bool) {
-        if !growing {
-            self.parts.remove(self.size-1);
-        }
-        else {
-            self.size += 1;
-        }
         let direction = &self.direction;
 
         let mut old_head = self.parts.remove(0);
-        old_head.is_head = false;
 
         let mut new_head = SnakePart {
-            is_head: true,
             coord: old_head.coord.increment(&direction),
             direction: direction.clone(),
         };
@@ -79,6 +106,13 @@ impl Snake {
             new_parts.push(self.parts.remove(0));
         }
         self.parts = new_parts;
+
+        if !growing {
+            self.parts.remove(self.size-1);
+        }
+        else {
+            self.size += 1;
+        }
 
         if self.parts.len() != self.size {
             println!("error, sizes do not match");
