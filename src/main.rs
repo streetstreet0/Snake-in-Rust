@@ -4,11 +4,25 @@ fn main() {
     
     let mut snake = generate_initial_snake();
     
-
+    draw_screen(&snake, width, height);
 }
 
 fn draw_screen(snake: &Snake, width: usize, height: usize) {
-    
+    draw_top_bottom_line(width);
+
+    draw_top_bottom_line(width);
+}
+
+fn draw_top_bottom_line(width: usize) {
+    let mut line = String::from("+");
+    let mut counter = 0;
+    while counter < width {
+        line.push_str("-");
+        counter += 1;
+    }
+    line.push_str("+");
+
+    println!("{line}");
 }
 
 fn generate_initial_snake() -> Snake {
