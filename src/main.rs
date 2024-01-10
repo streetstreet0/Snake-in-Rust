@@ -1,11 +1,21 @@
 use std::collections::HashMap;
-use std::io;
 use rand::Rng;
+use std::io;
 use rand::seq::SliceRandom;
 use std::thread;
 use std::time::Duration;
+use std::time::Instant;
+use crossterm::event::KeyEvent;
+use crossterm::event::KeyCode;
+use crossterm::event::poll;
+use crossterm::event::read;
+use crossterm::event::Event;
+use crossterm::terminal::enable_raw_mode;
+use crossterm::terminal::disable_raw_mode;
+
 
 fn main() {
+    const FRAME_RATE: i32 = 60;
     const WIDTH: i32 = 34;
     const HEIGHT: i32 = 13;
     // const WIDTH: i32 = 5;
@@ -20,39 +30,101 @@ fn main() {
         }
     };
     draw_screen(&snake, &food, WIDTH, HEIGHT);
+    enable_raw_mode().unwrap();
 
     loop { 
         // let new_direction = Direction::random_direction();
-        let new_direction = text_input_direction(&snake);
-        snake.change_direction(new_direction);
+        // let new_direction = text_input_direction(&snake);
+        // snake.change_direction(new_direction);
+        
+        // let duration = Duration::from_millis(500);
+        // thread::sleep(duration);
+
+        let duration = calculate_duration_from_framerate(FRAME_RATE, snake.size);
+        let now = Instant::now();
+        while now.elapsed() < duration {
+            if let Some(direction) = wait_for_user_input(duration-now.elapsed()) {
+                snake.change_direction(direction);
+            }
+        }
+        
 
         snake.move_snake(&food);
         if food.is_on_snake(&snake) {
             food = match generate_food(&snake, WIDTH, HEIGHT) {
                 Some(food_item) => food_item,
                 None => {
+                    disable_raw_mode().unwrap();
                     println!("VICTORY!");
-                    return;
+                    break;
                 },
             };
         }
         
-
+        disable_raw_mode().unwrap();
         draw_screen(&snake, &food, WIDTH, HEIGHT);
-
+        enable_raw_mode().unwrap();
+        
         if snake.lost_game(WIDTH, HEIGHT) {
+            disable_raw_mode().unwrap();
             println!("GAME OVER!");
             let size = snake.size;
             println!("Your Final Score was {size}");
             break;
         }
-
-        // let duration = Duration::from_millis(500);
-        // thread::sleep(duration);
     }
 }
 
-fn text_input_direction(snake: &Snake) -> Direction {
+fn calculate_duration_from_framerate(frame_rate: i32, snake_size: usize) -> Duration {
+    let mut millis = 1000 / frame_rate;
+    if snake_size > 50 {
+        millis = 3 * millis;
+    }
+    else if snake_size > 25 {
+        millis = 5 * millis;
+    }
+    else if snake_size > 20 {
+        millis = 8 * millis;
+    }
+    else if snake_size > 15 {
+        millis = 10 * millis;
+    }
+    else if snake_size > 10 {
+        millis = 13 * millis;
+    }
+    else if snake_size > 5 {
+        millis = 15 * millis;
+    }
+    else {
+        millis = 18 * millis;
+    }
+
+    Duration::from_millis(millis as u64)
+}
+
+fn wait_for_user_input(time_to_wait: Duration) -> Option<Direction> {
+    if poll(time_to_wait).ok()? {
+        let event = read().ok()?;
+        if let Event::Key(key) = event {
+            let direction = key_to_direction(key);
+            return direction;
+        }
+    }
+
+    None
+}
+
+fn key_to_direction(key: KeyEvent) -> Option<Direction> {
+    match key.code {
+        KeyCode::Up | KeyCode::Char('w') => Some(Direction::Up),
+        KeyCode::Down | KeyCode::Char('s') => Some(Direction::Down),
+        KeyCode::Left | KeyCode::Char('a') => Some(Direction::Left),
+        KeyCode::Right | KeyCode::Char('d') => Some(Direction::Right),
+        _ => None,
+    }
+}
+
+fn terminal_input_direction(snake: &Snake) -> Direction {
     let mut movement = String::new();
     io::stdin().read_line(&mut movement).expect("Failed to read line");
     match movement.trim().chars().next() {
