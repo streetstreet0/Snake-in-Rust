@@ -6,10 +6,10 @@ use std::thread;
 use std::time::Duration;
 
 fn main() {
-    // const WIDTH: i32 = 34;
-    // const HEIGHT: i32 = 13;
-    const WIDTH: i32 = 5;
-    const HEIGHT: i32 = 5;
+    const WIDTH: i32 = 34;
+    const HEIGHT: i32 = 13;
+    // const WIDTH: i32 = 5;
+    // const HEIGHT: i32 = 5;
 
     let mut snake = generate_initial_snake(WIDTH, HEIGHT);
     let mut food = match generate_food(&snake, WIDTH, HEIGHT){
