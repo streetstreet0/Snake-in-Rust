@@ -1,58 +1,132 @@
 use std::collections::HashMap;
+use std::io;
 use rand::Rng;
+use rand::seq::SliceRandom;
 use std::thread;
 use std::time::Duration;
 
 fn main() {
-    const WIDTH: i32 = 34;
-    const HEIGHT: i32 = 13;
+    // const WIDTH: i32 = 34;
+    // const HEIGHT: i32 = 13;
+    const WIDTH: i32 = 5;
+    const HEIGHT: i32 = 5;
 
     let mut snake = generate_initial_snake(WIDTH, HEIGHT);
-    let mut food = generate_food(&snake, WIDTH, HEIGHT);
+    let mut food = match generate_food(&snake, WIDTH, HEIGHT){
+        Some(food_item) => food_item,
+        None => {
+            println!("Error: initial food was not generated!");
+            return;
+        }
+    };
     draw_screen(&snake, &food, WIDTH, HEIGHT);
 
     loop { 
-        let new_direction = Direction::random_direction();
+        // let new_direction = Direction::random_direction();
+        let new_direction = text_input_direction(&snake);
         snake.change_direction(new_direction);
+
         snake.move_snake(&food);
         if food.is_on_snake(&snake) {
-            food = generate_food(&snake, WIDTH, HEIGHT);
+            food = match generate_food(&snake, WIDTH, HEIGHT) {
+                Some(food_item) => food_item,
+                None => {
+                    println!("VICTORY!");
+                    return;
+                },
+            };
         }
         
 
         draw_screen(&snake, &food, WIDTH, HEIGHT);
 
-        if snake.is_off_screen(WIDTH, HEIGHT) {
+        if snake.lost_game(WIDTH, HEIGHT) {
             println!("GAME OVER!");
+            let size = snake.size;
+            println!("Your Final Score was {size}");
             break;
         }
 
-        let duration = Duration::from_millis(500);
-        thread::sleep(duration);
+        // let duration = Duration::from_millis(500);
+        // thread::sleep(duration);
+    }
+}
+
+fn text_input_direction(snake: &Snake) -> Direction {
+    let mut movement = String::new();
+    io::stdin().read_line(&mut movement).expect("Failed to read line");
+    match movement.trim().chars().next() {
+        Some(char) => match char {
+            'a' => Direction::Left,
+            's' => Direction::Down,
+            'd' => Direction::Right,
+            'w' => Direction::Up,
+            _ => snake.direction,
+        },
+        None => snake.direction,
     }
 }
 
 // food is just a coordinate
-fn generate_food(snake: &Snake, width: i32, height: i32) -> Food {
-    let mut rand_x = rand::thread_rng().gen_range(0..=(width-1));
-    let mut rand_y = rand::thread_rng().gen_range(0..=(height-1));
-    let mut food = Food {
+fn generate_food(snake: &Snake, width: i32, height: i32) -> Option<Food> {
+    let max_size: usize = (width as usize) * (height as usize) * 3 / 10;
+    
+    // if the snake gets too large, we change to a new algorithm
+    if snake.size < max_size {
+        let mut rand_x = rand::thread_rng().gen_range(0..=(width-1));
+        let mut rand_y = rand::thread_rng().gen_range(0..=(height-1));
+        let mut food = Food {
         coord: Coordinate {
             x: rand_x,
             y: rand_y,
-        },
-    };
-
-    while food.is_on_snake(snake) {
-        rand_x = rand::thread_rng().gen_range(0..=(width-1));
-        rand_y = rand::thread_rng().gen_range(0..=(height-1));
-        food.coord = Coordinate {
-            x: rand_x,
-            y: rand_y,
+            }
         };
+
+        while food.is_on_snake(snake) {
+            rand_x = rand::thread_rng().gen_range(0..=(width-1));
+            rand_y = rand::thread_rng().gen_range(0..=(height-1));
+            food.coord = Coordinate {
+                x: rand_x,
+                y: rand_y,
+            };
+        }
+        
+        Some(food)
     }
-    
-    food
+    else if snake.size == (width as usize) * (height as usize) {
+        return None
+    }
+    else {
+        let mut valid_coords = HashMap::new();
+        let mut x_counter = 0;
+        while x_counter < width {
+            let mut y_counter = 0;
+            while y_counter < height {
+                let coord = Coordinate {
+                    x: x_counter,
+                    y: y_counter,
+                };
+                valid_coords.insert((x_counter, y_counter), coord);
+                y_counter += 1;
+            }
+            x_counter += 1;
+        }
+
+        for snake_part in &snake.parts {
+            valid_coords.remove(&(snake_part.coord.x, snake_part.coord.y));
+        }
+
+        let valid_coord_values: Vec<Coordinate> = valid_coords.values().cloned().collect();
+        match valid_coord_values.choose(&mut rand::thread_rng()) {
+            Some(rand_coord) => Some(Food {
+                coord: *rand_coord,
+            }),
+            None => {
+                println!("an error has occured in generating a random key");
+                None
+            },
+        }
+    }
 } 
 
 fn draw_screen(snake: &Snake, food: &Food, width: i32, height: i32) {
@@ -132,7 +206,26 @@ fn snake_parts_in_line(snake: &Snake, width: i32, line: i32) -> HashMap<i32, Ent
 
     for snake_part in &snake.parts {
         if snake_part.coord.y == line {
-            entities_in_line.insert(snake_part.coord.x, Entity::SnakePart(String::from(snake_part.symbol())));
+            let x = snake_part.coord.x;
+            match entities_in_line.get(&x) {
+                Some(entity) => {
+                    if snake_part.is_head {
+                        entities_in_line.insert(x, Entity::SnakePart(String::from(snake_part.symbol())));
+                    }
+                    else {
+                        match entity {
+                            Entity::Space => {
+                                entities_in_line.insert(x, Entity::SnakePart(String::from(snake_part.symbol())));
+                            },
+                            _ => (),
+                        }
+                    }
+                },
+                None => {
+                    entities_in_line.insert(x, Entity::SnakePart(String::from(snake_part.symbol())));
+                },
+            }
+            
         }
     }
     entities_in_line
@@ -293,6 +386,24 @@ impl Snake {
         else {
             false
         }
+    }
+
+    fn ate_itself(&self) -> bool {
+        let head = &self.parts[0];
+
+        let mut counter = 1;
+        while counter < self.parts.len() {
+            let current_part = &self.parts[counter];
+            if current_part.coord == head.coord {
+                return true;
+            }
+            counter += 1;
+        }
+        false
+    }
+
+    fn lost_game(&self, width: i32, height: i32) -> bool {
+        self.is_off_screen(width, height)|| self.ate_itself()
     }
 }
 
